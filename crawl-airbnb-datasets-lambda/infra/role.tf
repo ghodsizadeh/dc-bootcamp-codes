@@ -20,7 +20,7 @@ EOF
 }
 
 resource "aws_iam_policy" "full_access_s3_buckets" {
-  name = "full_access_s3_buckets_policy"
+  name = "full_access_s3_buckets_policy_1"
 
   policy = <<EOF
 {
