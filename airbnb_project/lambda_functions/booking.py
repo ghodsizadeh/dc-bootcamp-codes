@@ -42,6 +42,15 @@ def check_dates_available(room_id: "str", check_in: str, check_out: str):
     return list(res)
 
 
+def authorize_user(bearer_token: str) -> dict:
+    """
+    Check if the user is authorized
+    """
+    user_collection = client.airbnb.users
+    user = user_collection.find_one({"bearer_token": bearer_token})
+    return user
+
+
 # pylint: disable=unused-argument
 def lambda_handler(event, context):
     """
@@ -50,10 +59,19 @@ def lambda_handler(event, context):
 
     """
     # Get the check in and check out dates from the event
+    headers = event.get("headers", {})
+    bearer_token = headers.get("Authorization")
+    if bearer_token is None:
+        return {"statusCode": 401, "body": "Unauthorized"}
+    bearer_token = bearer_token.split(" ")[1]
+    user = authorize_user(bearer_token)
+    if user is None:
+        return {"statusCode": 401, "body": "Unauthorized"}
+
     body = event.get("body", {})
-    check_in = body.get("check_in", "")
-    check_out = body.get("check_out", "")
-    room_id = body.get("room", "")
+    check_in = body.get("check_in")
+    check_out = body.get("check_out")
+    room_id = body.get("room")
 
     if not check_in or not check_out or not room_id:
         return {"statusCode": 400, "body": "Missing required parameters"}
@@ -87,7 +105,7 @@ def lambda_handler(event, context):
         response = queue.send_message(
             MessageBody=f"{check_in}:{check_out}:{room}",
             MessageGroupId="Booking",
-            MessageDeduplicationId=f"{check_in}:{check_out}:{room_id}:{datetime.now().timestamp()}",
+            MessageDeduplicationId=f"{check_in}:{check_out}:{room_id}:{user}:{datetime.now().timestamp()}",
         )
     else:
         response = queue.send_message(

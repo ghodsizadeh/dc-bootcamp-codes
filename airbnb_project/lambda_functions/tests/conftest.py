@@ -105,3 +105,41 @@ def listings_collection(sample_rooms):
     collection.insert_many(sample_rooms)
     yield collection
     collection.delete_many({})
+
+
+@pytest.fixture(name="sample_user")
+def fixture_sample_user():
+    """
+    A fixture to generate a user object
+    """
+    return {
+        "bearer_token": fake.password(),
+        "name": fake.name(),
+        "email": fake.email(),
+        "phone": fake.phone_number(),
+    }
+
+
+@pytest.fixture
+def users_collection(sample_user):
+    """
+    A fixture to generate a collection of users
+    then clean it up after the test
+    """
+    client = pymongo.MongoClient()
+    db = client.airbnb
+    collection = db.users
+    collection.insert_one(sample_user)
+    yield collection
+    collection.delete_many({})
+
+
+@pytest.fixture(name="default_headers")
+def fixture_default_header(sample_user):
+    """
+    A fixture to generate a default header
+    """
+    return {
+        "Authorization": f"Bearer {sample_user['bearer_token']}",
+        "Content-Type": "application/json",
+    }
