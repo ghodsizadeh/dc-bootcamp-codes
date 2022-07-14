@@ -6,28 +6,18 @@ in main database
 import os
 from datetime import datetime
 
+
 import boto3
-import pymongo
 
-password = os.environ.get("MONGO_PASSWORD")
-doc_db_url = os.environ.get(
-    "DOC_DB_URL", "main-airbnb-docdb.cluster-capqutxquohy.eu-west-1.docdb.amazonaws.com"
-)
-connection_params = os.environ.get(
-    "CONNECTION_PARAMS",
-    '?replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false"',
-)
-connection_url = f"mongodb://docdb:{password}@{doc_db_url}:27017/{connection_params}"
-
-client = pymongo.MongoClient()
+from db import client
 
 
-def check_dates_available(room_id: "str", check_in: str, check_out: str):
+def check_dates_available(room_id: str, check_in: str, check_out: str):
     """
     Check if all the dates are available in the room calendar
     """
     collection = client.airbnb.listings
-    aggregate_query = [
+    aggregate_pipeline = [
         {"$match": {"_id": room_id}},
         {"$unwind": "$calendar"},
         {
@@ -38,11 +28,11 @@ def check_dates_available(room_id: "str", check_in: str, check_out: str):
         },
         {"$group": {"_id": "$_id", "calendar": {"$push": "$calendar"}}},
     ]
-    res = list(collection.aggregate(aggregate_query))
+    res = list(collection.aggregate(aggregate_pipeline))
     return list(res)
 
 
-def authorize_user(bearer_token: str) -> dict:
+def authorize_user(bearer_token: str):
     """
     Check if the user is authorized
     """
@@ -101,6 +91,8 @@ def lambda_handler(event, context):
     # pylint: disable=bare-except
     except:
         queue = sqs.create_queue(QueueName="booking_queue_name")
+
+    # if the queue is FIFO add  GroupId and MessageDeduplicationId
     if ".fifo" in booking_queue_name:
         response = queue.send_message(
             MessageBody=f"{check_in}:{check_out}:{room}",
