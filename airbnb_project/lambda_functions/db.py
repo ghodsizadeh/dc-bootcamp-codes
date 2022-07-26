@@ -18,4 +18,11 @@ connection_url: str = (
     f"mongodb://docdb:{password}@{doc_db_url}:27017/{connection_params}"
 )
 
-client: pymongo.MongoClient = pymongo.MongoClient()
+if os.getenv("DOC_DB_URL"):
+    client: pymongo.MongoClient = pymongo.MongoClient(connection_url)
+elif os.getenv("IS_LOCALSTACK"):
+    client: pymongo.MongoClient = pymongo.MongoClient(
+        host="docker.internal.host", port=27017
+    )
+else:
+    client: pymongo.MongoClient = pymongo.MongoClient()
