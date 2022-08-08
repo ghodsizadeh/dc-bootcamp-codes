@@ -9,6 +9,7 @@ Test functionality of booking lambda functions with following tests
 """
 # pylint: disable=unused-argument
 
+from typing import Dict
 from booking import lambda_handler
 
 
@@ -26,7 +27,7 @@ def test_booking(listings_collection_one_room, users_collection, default_headers
         "headers": default_headers,
     }
 
-    context = {}
+    context: Dict = {}
     response = lambda_handler(event, context)
     assert response["statusCode"] == 202
     body = response["body"]
@@ -49,7 +50,7 @@ def test_booking_when_a_day_is_not_available(
         "headers": default_headers,
     }
 
-    context = {}
+    context: Dict = {}
     response = lambda_handler(event, context)
     assert response["statusCode"] == 400
     body = response["body"]
@@ -71,7 +72,7 @@ def test_booking_when_room_id_is_wrong(
         "headers": default_headers,
     }
 
-    context = {}
+    context: Dict = {}
     response = lambda_handler(event, context)
     assert response["statusCode"] == 404
     body = response["body"]
@@ -90,7 +91,7 @@ def test_booking_with_unauthorized_user(listings_collection_one_room):
         },
     }
 
-    context = {}
+    context: Dict = {}
     response = lambda_handler(event, context)
     assert response["statusCode"] == 401
     body = response["body"]

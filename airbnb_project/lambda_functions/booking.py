@@ -5,7 +5,7 @@ in main database
 """
 import os
 from datetime import datetime
-
+from typing import Dict, Sequence
 
 import boto3
 
@@ -17,7 +17,7 @@ def check_dates_available(room_id: str, check_in: str, check_out: str):
     Check if all the dates are available in the room calendar
     """
     collection = client.airbnb.listings
-    aggregate_pipeline = [
+    aggregate_pipeline: Sequence[Dict] = [
         {"$match": {"_id": room_id}},
         {"$unwind": "$calendar"},
         {
@@ -28,8 +28,7 @@ def check_dates_available(room_id: str, check_in: str, check_out: str):
         },
         {"$group": {"_id": "$_id", "calendar": {"$push": "$calendar"}}},
     ]
-    res = list(collection.aggregate(aggregate_pipeline))
-    return list(res)
+    return list(collection.aggregate(aggregate_pipeline))
 
 
 def authorize_user(bearer_token: str):
@@ -37,11 +36,10 @@ def authorize_user(bearer_token: str):
     Check if the user is authorized
     """
     user_collection = client.airbnb.users
-    user = user_collection.find_one({"bearer_token": bearer_token})
-    return user
+    return user_collection.find_one({"bearer_token": bearer_token})
 
 
-# pylint: disable=unused-argument
+# pylint: disable=unused-argument,too-many-locals
 def lambda_handler(event, context):
     """
     Get Check in and Check out dates from the event
@@ -97,7 +95,8 @@ def lambda_handler(event, context):
         response = queue.send_message(
             MessageBody=f"{check_in}:{check_out}:{room}",
             MessageGroupId="Booking",
-            MessageDeduplicationId=f"{check_in}:{check_out}:{room_id}:{user}:{datetime.now().timestamp()}",
+            MessageDeduplicationId=f"{check_in}:{check_out}"
+            f":{room_id}:{user}:{datetime.now().timestamp()}",
         )
     else:
         response = queue.send_message(
