@@ -5,30 +5,12 @@ in main database
 """
 import os
 from datetime import datetime
-from typing import Dict, Sequence
+
 
 import boto3
 
 from db import client
-
-
-def check_dates_available(room_id: str, check_in: str, check_out: str):
-    """
-    Check if all the dates are available in the room calendar
-    """
-    collection = client.airbnb.listings
-    aggregate_pipeline: Sequence[Dict] = [
-        {"$match": {"_id": room_id}},
-        {"$unwind": "$calendar"},
-        {
-            "$match": {
-                "calendar.date": {"$gte": check_in, "$lte": check_out},
-                "calendar.availability": {"$eq": False},
-            },
-        },
-        {"$group": {"_id": "$_id", "calendar": {"$push": "$calendar"}}},
-    ]
-    return list(collection.aggregate(aggregate_pipeline))
+from utils import check_dates_available
 
 
 def authorize_user(bearer_token: str):
@@ -93,14 +75,16 @@ def lambda_handler(event, context):
     # if the queue is FIFO add  GroupId and MessageDeduplicationId
     if ".fifo" in booking_queue_name:
         response = queue.send_message(
-            MessageBody=f"{check_in}:{check_out}:{room}",
+            MessageBody=f"{check_in}:{check_out}"
+            f":{room_id}:{user}:{datetime.now().timestamp()}",
             MessageGroupId="Booking",
             MessageDeduplicationId=f"{check_in}:{check_out}"
             f":{room_id}:{user}:{datetime.now().timestamp()}",
         )
     else:
         response = queue.send_message(
-            MessageBody=f"{check_in}:{check_out}:{room}",
+            MessageBody=f"{check_in}:{check_out}"
+            f":{room_id}:{user}:{datetime.now().timestamp()}",
         )
 
     return {

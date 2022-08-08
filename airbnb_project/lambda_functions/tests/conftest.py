@@ -1,14 +1,14 @@
 """
 Pytest fixtures
 """
-# pylint: disable=unused-argument
+# pylint: disable=unused-argument,redefined-outer-name
 
 from typing import Iterable, List
 
 import pymongo
 import pytest
 from faker import Faker
-from models import Calendar, Host, Room, User
+from models import Calendar, Host, Room, UpdateDBEvent, User, BookingMessage
 
 fake = Faker()
 Faker.seed(0)
@@ -34,7 +34,7 @@ def calendar_faker() -> List[Calendar]:
     return [
         Calendar(
             **{
-                "date": f"2020-01-{i:02d}",
+                "date": f"2020-01-{i+1:02d}",
                 "price": price,
                 "adjusted_price": price,
                 "availability": not 10 < i < 20,
@@ -158,3 +158,44 @@ def fixture_default_header(sample_user: User) -> dict:
         "Authorization": f"Bearer {sample_user.bearer_token}",
         "Content-Type": "application/json",
     }
+
+
+@pytest.fixture
+def update_db_event(users_collection, listings_collection_one_room) -> UpdateDBEvent:
+    """
+    Create a SQS message for update_db lambda function
+    """
+    message = BookingMessage(
+        check_in="2020-01-01",
+        check_out="2020-01-08",
+        room_id=str(listings_collection_one_room.find_one()["_id"]),
+        user_id=str(users_collection.find_one()["_id"]),
+        ts="2020-01-01T00",
+    )
+    message_str = message.get_message_str()
+
+    records = [
+        {
+            "body": message_str,
+            "messageId": message_str,
+            "receiptHandle": "1",
+            "md5OfBody": "1",
+            "eventSource": "aws:sqs",
+            "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:queue1",
+            "awsRegion": "us-east-1",
+            "attributes": {},
+        }
+    ]
+    return UpdateDBEvent(Records=records)
+
+
+@pytest.fixture
+def bookings_collection():
+    """
+    A fixture to generate a collection of bookings
+    """
+    client: pymongo.MongoClient = pymongo.MongoClient()
+    db = client.airbnb
+    collection = db.bookings
+    yield collection
+    collection.delete_many({})
