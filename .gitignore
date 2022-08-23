@@ -164,5 +164,7 @@ override.tf.json
 .terraformrc
 terraform.rc
 airbnb_project/lambda_functions/package
+airbnb_project/lambda_functions/python
 airbnb_project/lambda_functions/*.zip
 airbnb_project/query.zip
+airbnb_project/infra/invoke_lambdas.sh

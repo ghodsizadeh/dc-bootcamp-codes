@@ -6,43 +6,22 @@ in main database
 import os
 from datetime import datetime
 
+
 import boto3
-import pymongo
 
-password = os.environ.get("MONGO_PASSWORD")
-doc_db_url = os.environ.get(
-    "DOC_DB_URL", "main-airbnb-docdb.cluster-capqutxquohy.eu-west-1.docdb.amazonaws.com"
-)
-connection_params = os.environ.get(
-    "CONNECTION_PARAMS",
-    '?replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false"',
-)
-connection_url = f"mongodb://docdb:{password}@{doc_db_url}:27017/{connection_params}"
-
-client = pymongo.MongoClient()
+from db import client
+from utils import check_dates_available
 
 
-def check_dates_available(room_id: "str", check_in: str, check_out: str):
+def authorize_user(bearer_token: str):
     """
-    Check if all the dates are available in the room calendar
+    Check if the user is authorized
     """
-    collection = client.airbnb.listings
-    aggregate_query = [
-        {"$match": {"_id": room_id}},
-        {"$unwind": "$calendar"},
-        {
-            "$match": {
-                "calendar.date": {"$gte": check_in, "$lte": check_out},
-                "calendar.availability": {"$eq": False},
-            },
-        },
-        {"$group": {"_id": "$_id", "calendar": {"$push": "$calendar"}}},
-    ]
-    res = list(collection.aggregate(aggregate_query))
-    return list(res)
+    user_collection = client.airbnb.users
+    return user_collection.find_one({"bearer_token": bearer_token})
 
 
-# pylint: disable=unused-argument
+# pylint: disable=unused-argument,too-many-locals
 def lambda_handler(event, context):
     """
     Get Check in and Check out dates from the event
@@ -50,10 +29,19 @@ def lambda_handler(event, context):
 
     """
     # Get the check in and check out dates from the event
+    headers = event.get("headers", {})
+    bearer_token = headers.get("Authorization")
+    if bearer_token is None:
+        return {"statusCode": 401, "body": "Unauthorized"}
+    bearer_token = bearer_token.split(" ")[1]
+    user = authorize_user(bearer_token)
+    if user is None:
+        return {"statusCode": 401, "body": "Unauthorized"}
+
     body = event.get("body", {})
-    check_in = body.get("check_in", "")
-    check_out = body.get("check_out", "")
-    room_id = body.get("room", "")
+    check_in = body.get("check_in")
+    check_out = body.get("check_out")
+    room_id = body.get("room")
 
     if not check_in or not check_out or not room_id:
         return {"statusCode": 400, "body": "Missing required parameters"}
@@ -83,15 +71,20 @@ def lambda_handler(event, context):
     # pylint: disable=bare-except
     except:
         queue = sqs.create_queue(QueueName="booking_queue_name")
+
+    # if the queue is FIFO add  GroupId and MessageDeduplicationId
     if ".fifo" in booking_queue_name:
         response = queue.send_message(
-            MessageBody=f"{check_in}:{check_out}:{room}",
+            MessageBody=f"{check_in}:{check_out}"
+            f":{room_id}:{user}:{datetime.now().timestamp()}",
             MessageGroupId="Booking",
-            MessageDeduplicationId=f"{check_in}:{check_out}:{room_id}:{datetime.now().timestamp()}",
+            MessageDeduplicationId=f"{check_in}:{check_out}"
+            f":{room_id}:{user}:{datetime.now().timestamp()}",
         )
     else:
         response = queue.send_message(
-            MessageBody=f"{check_in}:{check_out}:{room}",
+            MessageBody=f"{check_in}:{check_out}"
+            f":{room_id}:{user}:{datetime.now().timestamp()}",
         )
 
     return {

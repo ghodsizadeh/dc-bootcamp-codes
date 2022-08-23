@@ -1,0 +1,3 @@
+
+pydantic==1.9.1
+pymongo==4.1.1
